@@ -18,6 +18,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
@@ -40,6 +41,10 @@ class ScreenCaptureService : Service() {
     private var isRunning = false
     private var overlayService: OverlayService? = null
     private val inferIntervalMs = 200L // 5 FPS
+
+    // Performance stats
+    private val frameTimestamps = ArrayDeque<Long>()
+    private var lastLatencyMs: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -109,8 +114,20 @@ class ScreenCaptureService : Service() {
         image.close()
 
         if (bitmap != null) {
+            val startTime = SystemClock.elapsedRealtime()
             val results = yoloDetector?.detect(bitmap) ?: emptyList()
+            lastLatencyMs = SystemClock.elapsedRealtime() - startTime
+
+            // Update FPS: count frames in last 1000ms
+            val now = SystemClock.elapsedRealtime()
+            frameTimestamps.addLast(now)
+            while (frameTimestamps.isNotEmpty() && now - frameTimestamps.first() > 1000L) {
+                frameTimestamps.removeFirst()
+            }
+            val fps = frameTimestamps.size.toFloat()
+
             overlayService?.updateDetections(results)
+            overlayService?.updateStats(fps, lastLatencyMs)
             bitmap.recycle()
         }
     }

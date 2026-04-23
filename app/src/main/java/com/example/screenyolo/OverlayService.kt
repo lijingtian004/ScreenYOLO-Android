@@ -31,6 +31,10 @@ class OverlayService : Service() {
         overlayView.updateDetections(detections)
     }
 
+    fun updateStats(fps: Float, latencyMs: Long) {
+        overlayView.updateStats(fps, latencyMs)
+    }
+
     fun setScale(w: Int, h: Int, inputSize: Int = 640) {
         overlayView.setScale(w, h, inputSize)
     }
