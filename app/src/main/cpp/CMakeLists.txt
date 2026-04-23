@@ -7,7 +7,7 @@ set(NCNN_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/ncnn)
 
 add_library(yolov8ncnn SHARED yolov8ncnn.cpp)
 
-target_include_directories(yolov8ncnn PRIVATE ${NCNN_ROOT}/include/ncnn)
+target_include_directories(yolov8ncnn PRIVATE ${NCNN_ROOT}/include)
 
 find_library(jnigraphics-lib jnigraphics)
 find_library(log-lib log)
