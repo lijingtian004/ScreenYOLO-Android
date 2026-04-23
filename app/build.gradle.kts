@@ -37,6 +37,7 @@ android {
     buildFeatures {
         viewBinding = true
     }
+    ndkVersion = "26.3.11579264"
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
