@@ -139,7 +139,7 @@ class ScreenCaptureService : Service() {
         startService(intent)
         // Simple binding workaround: we start service and will communicate via broadcast if needed.
         // For simplicity in this sample, we use a static bridge.
-        OverlayServiceHolder.service = null
+        OverlayServiceHolder.view = null
         // Actually start and hold reference through a local binder pattern is complex.
         // We'll use a simpler broadcast-based approach in MainActivity to update overlay.
     }
