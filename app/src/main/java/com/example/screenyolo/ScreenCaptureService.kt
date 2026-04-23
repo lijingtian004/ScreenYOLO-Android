@@ -16,6 +16,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
@@ -40,7 +41,11 @@ class ScreenCaptureService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var isRunning = false
     private var overlayService: OverlayService? = null
-    private val minFrameIntervalMs = 16L // ~60fps cap
+
+    // Background inference thread
+    private var inferThread: HandlerThread? = null
+    private var inferHandler: Handler? = null
+    private var isInferring = false
 
     // Performance stats
     private val frameTimestamps = ArrayDeque<Long>()
@@ -70,6 +75,10 @@ class ScreenCaptureService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+
+        // Start background inference thread
+        inferThread = HandlerThread("YoloInference").apply { start() }
+        inferHandler = Handler(inferThread!!.looper)
 
         startForeground(1, buildNotification(engineType.displayName))
         startOverlay()
@@ -105,30 +114,41 @@ class ScreenCaptureService : Service() {
             if (!isRunning) return@postDelayed
             processFrame()
             if (isRunning) scheduleNextFrame()
-        }, minFrameIntervalMs)
+        }, 8L) // ~120fps loop cap, actual speed limited by inference
     }
 
     private fun processFrame() {
+        if (isInferring) return // Skip if background thread still busy
+
         val image = imageReader?.acquireLatestImage() ?: return
         val bitmap = imageToBitmap(image)
         image.close()
 
         if (bitmap != null) {
-            val startTime = SystemClock.elapsedRealtime()
-            val results = yoloDetector?.detect(bitmap) ?: emptyList()
-            lastLatencyMs = SystemClock.elapsedRealtime() - startTime
+            isInferring = true
+            inferHandler?.post {
+                val startTime = SystemClock.elapsedRealtime()
+                val results = yoloDetector?.detect(bitmap) ?: emptyList()
+                val latency = SystemClock.elapsedRealtime() - startTime
+                bitmap.recycle()
 
-            // Update FPS: count frames in last 1000ms
-            val now = SystemClock.elapsedRealtime()
-            frameTimestamps.addLast(now)
-            while (frameTimestamps.isNotEmpty() && now - frameTimestamps.first() > 1000L) {
-                frameTimestamps.removeFirst()
+                handler.post {
+                    if (!isRunning) return@post
+                    lastLatencyMs = latency
+
+                    // Update FPS: count completed inferences in last 1000ms
+                    val now = SystemClock.elapsedRealtime()
+                    frameTimestamps.addLast(now)
+                    while (frameTimestamps.isNotEmpty() && now - frameTimestamps.first() > 1000L) {
+                        frameTimestamps.removeFirst()
+                    }
+                    val fps = frameTimestamps.size.toFloat()
+
+                    overlayService?.updateDetections(results)
+                    overlayService?.updateStats(fps, lastLatencyMs)
+                    isInferring = false
+                }
             }
-            val fps = frameTimestamps.size.toFloat()
-
-            overlayService?.updateDetections(results)
-            overlayService?.updateStats(fps, lastLatencyMs)
-            bitmap.recycle()
         }
     }
 
@@ -180,6 +200,7 @@ class ScreenCaptureService : Service() {
     override fun onDestroy() {
         isRunning = false
         handler.removeCallbacksAndMessages(null)
+        inferThread?.quitSafely()
         virtualDisplay?.release()
         imageReader?.close()
         mediaProjection?.stop()
