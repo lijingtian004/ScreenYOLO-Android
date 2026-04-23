@@ -122,7 +122,6 @@ Java_com_example_screenyolo_engine_NcnnEngine_nativeDetect(JNIEnv* env, jobject 
     in_resized.substract_mean_normalize(0, norm_vals);
 
     ncnn::Extractor ex = g_yolov8.create_extractor();
-    ex.set_num_threads(4);
 
     // Try common input names
     int ret = ex.input("in0", in_resized);
