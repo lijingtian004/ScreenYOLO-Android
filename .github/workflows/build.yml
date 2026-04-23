@@ -36,6 +36,7 @@ jobs:
 
       - name: Export YOLOv8 TFLite model
         run: |
+          pip install "numpy<2" scipy pillow opencv-python pyyaml requests matplotlib
           pip install ultralytics
           python -c "from ultralytics import YOLO; YOLO('yolov8n.pt').export(format='tflite')"
           mkdir -p app/src/main/assets
