@@ -17,7 +17,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="选择推理引擎"
+        android:text="推理引擎"
         android:textSize="14sp"
         android:layout_marginBottom="4dp" />
 
@@ -25,21 +25,29 @@
         android:id="@+id/spinnerEngine"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp" />
+        android:layout_marginBottom="12dp" />
 
     <TextView
         android:id="@+id/tvModelStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="模型状态: 检测中..."
+        android:text="未导入模型"
         android:textSize="14sp"
-        android:layout_marginBottom="24dp" />
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btnPickModel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="导入模型文件 (.tflite / .onnx)"
+        android:layout_marginBottom="16dp" />
 
     <Button
         android:id="@+id/btnStart"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="开始屏幕检测"
+        android:enabled="false"
         android:layout_marginBottom="16dp" />
 
     <Button
@@ -51,7 +59,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="使用说明：\n1. 选择推理引擎（TFLite/ONNX）\n2. 点击“开始屏幕检测”\n3. 授予录屏和悬浮窗权限\n4. 屏幕上会显示检测框\n\n内置模型: YOLOv8-nano (COCO 80类)"
+        android:text="使用说明：\n1. 选择推理引擎\n2. 导入自己的模型文件\n3. 点击“开始屏幕检测”\n4. 授予录屏和悬浮窗权限\n5. 屏幕上会显示检测框\n\n支持: TFLite (.tflite) / ONNX (.onnx)\nYOLOv8 模型，输入尺寸 640x640"
         android:textSize="14sp"
         android:layout_marginTop="24dp"
         android:lineSpacingMultiplier="1.3" />

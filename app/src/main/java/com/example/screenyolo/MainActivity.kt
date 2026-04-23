@@ -20,21 +20,26 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.screenyolo.engine.EngineType
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
 
     companion object {
         const val REQUEST_MEDIA_PROJECTION = 1001
         const val REQUEST_OVERLAY = 1002
+        const val REQUEST_PICK_MODEL = 1003
     }
 
     private lateinit var spinnerEngine: Spinner
+    private lateinit var btnPickModel: Button
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var tvModelStatus: TextView
 
     private var mediaProjectionResultCode: Int = 0
     private var mediaProjectionData: Intent? = null
+    private var customModelFile: File? = null
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -50,7 +55,6 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             runOnUiThread {
                 Toast.makeText(context, "模型加载失败", Toast.LENGTH_LONG).show()
-                updateModelStatus()
             }
         }
     }
@@ -60,11 +64,11 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         spinnerEngine = findViewById(R.id.spinnerEngine)
+        btnPickModel = findViewById(R.id.btnPickModel)
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
         tvModelStatus = findViewById(R.id.tvModelStatus)
 
-        // Setup engine spinner
         val adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
@@ -73,6 +77,7 @@ class MainActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerEngine.adapter = adapter
 
+        btnPickModel.setOnClickListener { pickModelFile() }
         btnStart.setOnClickListener { startDetection() }
         btnStop.setOnClickListener { stopDetection() }
 
@@ -82,15 +87,35 @@ class MainActivity : AppCompatActivity() {
             Context.RECEIVER_EXPORTED
         )
 
-        updateModelStatus()
+        refreshModelStatus()
     }
 
-    private fun updateModelStatus() {
-        val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
-        tvModelStatus.text = "就绪 | 引擎: ${engineType.displayName}"
+    private fun refreshModelStatus() {
+        customModelFile = File(filesDir, "custom_model")
+        if (customModelFile?.exists() == true) {
+            tvModelStatus.text = "已导入: ${customModelFile?.name} (${customModelFile?.length()?.div(1024)?.let { if (it < 1024) "${it}KB" else "${it / 1024}MB" }})"
+            btnStart.isEnabled = true
+        } else {
+            tvModelStatus.text = "未导入模型"
+            btnStart.isEnabled = false
+        }
+    }
+
+    private fun pickModelFile() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/octet-stream", "application/tflite"))
+        }
+        startActivityForResult(intent, REQUEST_PICK_MODEL)
     }
 
     private fun startDetection() {
+        if (customModelFile?.exists() != true) {
+            Toast.makeText(this, "请先导入模型文件", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "请先授予悬浮窗权限", Toast.LENGTH_SHORT).show()
             val intent = Intent(
@@ -175,6 +200,28 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
                 }
             }
+            REQUEST_PICK_MODEL -> {
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    copyModelFromUri(data.data)
+                }
+            }
+        }
+    }
+
+    private fun copyModelFromUri(uri: Uri?) {
+        if (uri == null) return
+        try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                val outFile = File(filesDir, "custom_model")
+                FileOutputStream(outFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            Toast.makeText(this, "模型导入成功", Toast.LENGTH_SHORT).show()
+            refreshModelStatus()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "导入失败: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
