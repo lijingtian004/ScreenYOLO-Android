@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ScreenYOLO"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
+        android:id="@+id/tvModelStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="未导入模型"
+        android:textSize="16sp"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnPickModel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="选择模型文件 (.tflite)"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/btnStart"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="开始屏幕检测"
+        android:enabled="false"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnStop"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="停止检测" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="使用说明：\n1. 先点击“选择模型文件”导入 YOLO TFLite 模型\n2. 点击“开始屏幕检测”\n3. 授予录屏和悬浮窗权限\n4. 屏幕上会显示检测框"
+        android:textSize="14sp"
+        android:layout_marginTop="32dp"
+        android:lineSpacingMultiplier="1.3" />
+</LinearLayout>
