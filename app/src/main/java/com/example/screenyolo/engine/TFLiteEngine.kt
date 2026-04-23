@@ -37,10 +37,10 @@ class TFLiteEngine(
     }
 
     override val name: String = if (isQuantized) "TFLite INT8" else "TFLite FP32"
-    override val inputSize: Int = INPUT_SIZE
+    override val inputSize: Int
 
     private val interpreter: Interpreter
-    private val intValues = IntArray(INPUT_SIZE * INPUT_SIZE)
+    private val intValues: IntArray
     private val inputBuffer: ByteBuffer
 
     init {
@@ -51,16 +51,20 @@ class TFLiteEngine(
             }
         }
         interpreter = Interpreter(File(modelPath), options)
+        // Auto-detect input size from model
+        val inputShape = interpreter.getInputTensor(0).shape()
+        inputSize = inputShape[1]  // [1, H, W, 3]
+        intValues = IntArray(inputSize * inputSize)
         val bytesPerPixel = if (isQuantized) 1 else 4
-        inputBuffer = ByteBuffer.allocateDirect(1 * INPUT_SIZE * INPUT_SIZE * 3 * bytesPerPixel)
+        inputBuffer = ByteBuffer.allocateDirect(1 * inputSize * inputSize * 3 * bytesPerPixel)
         inputBuffer.order(ByteOrder.nativeOrder())
     }
 
     override fun detect(bitmap: Bitmap): List<Detection> {
         val start = SystemClock.elapsedRealtime()
 
-        val scaled = Bitmap.createScaledBitmap(bitmap, INPUT_SIZE, INPUT_SIZE, true)
-        scaled.getPixels(intValues, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE)
+        val scaled = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
+        scaled.getPixels(intValues, 0, inputSize, 0, 0, inputSize, inputSize)
 
         inputBuffer.rewind()
         if (isQuantized) {

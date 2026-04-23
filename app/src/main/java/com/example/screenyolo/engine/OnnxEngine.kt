@@ -9,7 +9,6 @@ import java.nio.FloatBuffer
 class OnnxEngine(modelPath: String) : InferenceEngine {
 
     companion object {
-        const val INPUT_SIZE = 640
         const val NUM_CLASSES = 80
         const val CONF_THRESHOLD = 0.25f
         const val IOU_THRESHOLD = 0.45f
@@ -18,7 +17,7 @@ class OnnxEngine(modelPath: String) : InferenceEngine {
     }
 
     override val name: String = "ONNX Runtime"
-    override val inputSize: Int = INPUT_SIZE
+    override val inputSize: Int
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession
@@ -26,7 +25,6 @@ class OnnxEngine(modelPath: String) : InferenceEngine {
     init {
         val opts = OrtSession.SessionOptions().apply {
             setIntraOpNumThreads(4)
-            // Try NNAPI delegate on Android
             try {
                 addNnapi()
             } catch (_: Exception) {
@@ -34,38 +32,42 @@ class OnnxEngine(modelPath: String) : InferenceEngine {
             }
         }
         session = env.createSession(modelPath, opts)
+        // Auto-detect input size from ONNX model: NCHW [1, 3, H, W]
+        val inputInfo = session.inputInfo.values.first()
+        val shape = inputInfo.info.shape
+        inputSize = shape[2].toInt()  // H
     }
 
     override fun detect(bitmap: Bitmap): List<Detection> {
         val start = SystemClock.elapsedRealtime()
 
-        val scaled = Bitmap.createScaledBitmap(bitmap, INPUT_SIZE, INPUT_SIZE, true)
-        val pixels = IntArray(INPUT_SIZE * INPUT_SIZE)
-        scaled.getPixels(pixels, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE)
+        val scaled = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
+        val pixels = IntArray(inputSize * inputSize)
+        scaled.getPixels(pixels, 0, inputSize, 0, 0, inputSize, inputSize)
 
-        // ONNX YOLOv8 input: NCHW [1, 3, 640, 640]
-        val floatBuffer = FloatBuffer.allocate(1 * 3 * INPUT_SIZE * INPUT_SIZE)
-        for (y in 0 until INPUT_SIZE) {
-            for (x in 0 until INPUT_SIZE) {
-                val pixel = pixels[y * INPUT_SIZE + x]
+        // ONNX YOLOv8 input: NCHW [1, 3, H, W]
+        val floatBuffer = FloatBuffer.allocate(1 * 3 * inputSize * inputSize)
+        for (y in 0 until inputSize) {
+            for (x in 0 until inputSize) {
+                val pixel = pixels[y * inputSize + x]
                 floatBuffer.put(((pixel shr 16) and 0xFF) / 255.0f)
             }
         }
-        for (y in 0 until INPUT_SIZE) {
-            for (x in 0 until INPUT_SIZE) {
-                val pixel = pixels[y * INPUT_SIZE + x]
+        for (y in 0 until inputSize) {
+            for (x in 0 until inputSize) {
+                val pixel = pixels[y * inputSize + x]
                 floatBuffer.put(((pixel shr 8) and 0xFF) / 255.0f)
             }
         }
-        for (y in 0 until INPUT_SIZE) {
-            for (x in 0 until INPUT_SIZE) {
-                val pixel = pixels[y * INPUT_SIZE + x]
+        for (y in 0 until inputSize) {
+            for (x in 0 until inputSize) {
+                val pixel = pixels[y * inputSize + x]
                 floatBuffer.put((pixel and 0xFF) / 255.0f)
             }
         }
         floatBuffer.rewind()
 
-        val inputShape = longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
+        val inputShape = longArrayOf(1, 3, inputSize.toLong(), inputSize.toLong())
         val inputTensor = OnnxTensor.createTensor(env, floatBuffer, inputShape)
 
         val inputName = session.inputNames.iterator().next()
@@ -87,7 +89,6 @@ class OnnxEngine(modelPath: String) : InferenceEngine {
     }
 
     private fun parseAndNms(output: Array<Array<FloatArray>>): List<Detection> {
-        // ONNX YOLOv8 output: [1, 84, 8400]
         val shape = arrayOf(output.size, output[0].size, output[0][0].size)
         val isTransposed = shape[1] == 84 && shape[2] == 8400
         val numAnchors = if (isTransposed) shape[2] else shape[1]

@@ -31,8 +31,8 @@ class OverlayService : Service() {
         overlayView.updateDetections(detections)
     }
 
-    fun setScale(w: Int, h: Int) {
-        overlayView.setScale(w, h)
+    fun setScale(w: Int, h: Int, inputSize: Int = 640) {
+        overlayView.setScale(w, h, inputSize)
     }
 
     override fun onBind(intent: Intent): IBinder? = null

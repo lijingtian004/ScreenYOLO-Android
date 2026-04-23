@@ -10,10 +10,10 @@ interface InferenceEngine {
     fun close()
 }
 
-enum class EngineType(val displayName: String, val modelFile: String) {
-    TFLITE_FP32("TFLite FP32", "yolov8n_float32.tflite"),
-    TFLITE_INT8("TFLite INT8", "yolov8n_full_integer_quant.tflite"),
-    ONNX("ONNX Runtime", "yolov8n.onnx");
+enum class EngineType(val displayName: String) {
+    TFLITE_FP32("TFLite FP32"),
+    TFLITE_INT8("TFLite INT8"),
+    ONNX("ONNX Runtime");
 
     companion object {
         fun fromOrdinal(ordinal: Int): EngineType = entries.getOrElse(ordinal) { TFLITE_FP32 }

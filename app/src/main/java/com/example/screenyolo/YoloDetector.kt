@@ -22,6 +22,7 @@ class YoloDetector(context: Context, engineType: EngineType) {
     }
 
     val engineName: String get() = engine.name
+    val inputSize: Int get() = engine.inputSize
 
     fun detect(bitmap: Bitmap): List<Detection> = engine.detect(bitmap)
 

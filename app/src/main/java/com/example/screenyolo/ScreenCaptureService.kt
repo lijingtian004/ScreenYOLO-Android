@@ -79,7 +79,7 @@ class ScreenCaptureService : Service() {
         val height = metrics.heightPixels
         val density = metrics.densityDpi
 
-        overlayService?.setScale(width, height)
+        overlayService?.setScale(width, height, yoloDetector?.inputSize ?: 640)
 
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         virtualDisplay = mediaProjection?.createVirtualDisplay(
