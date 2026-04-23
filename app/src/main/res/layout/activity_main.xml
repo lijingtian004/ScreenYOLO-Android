@@ -1,66 +1,127 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="24dp"
-    android:gravity="center_horizontal">
+    android:fillViewport="true"
+    android:background="@color/bg_dark">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="ScreenYOLO"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="推理引擎"
-        android:textSize="14sp"
-        android:layout_marginBottom="4dp" />
-
-    <Spinner
-        android:id="@+id/spinnerEngine"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp" />
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
 
-    <TextView
-        android:id="@+id/tvModelStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="未导入模型"
-        android:textSize="14sp"
-        android:layout_marginBottom="12dp" />
+        <ImageView
+            android:id="@+id/ivLogo"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="24dp"
+            android:background="@drawable/bg_logo_circle"
+            android:scaleType="centerInside"
+            android:contentDescription="@string/app_name" />
 
-    <Button
-        android:id="@+id/btnPickModel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="导入模型文件"
-        android:layout_marginBottom="16dp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ScreenYOLO"
+            android:textSize="32sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary_neon"
+            android:layout_marginBottom="32dp" />
 
-    <Button
-        android:id="@+id/btnStart"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="开始屏幕检测"
-        android:enabled="false"
-        android:layout_marginBottom="16dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="16dp"
+            android:layout_marginBottom="20dp">
 
-    <Button
-        android:id="@+id/btnStop"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="停止检测" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="推理引擎"
+                android:textSize="14sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginBottom="8dp" />
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="使用说明：\n1. 选择推理引擎\n2. 导入模型文件\n3. 点击“开始屏幕检测”\n4. 授予录屏和悬浮窗权限\n5. 屏幕上会显示检测框\n\nTFLite/ONNX: 导入单个模型文件\nNCNN: 导入 .zip (包含 .param + .bin)\n支持任意输入尺寸的 YOLOv8 模型"
-        android:textSize="14sp"
-        android:layout_marginTop="24dp"
-        android:lineSpacingMultiplier="1.3" />
-</LinearLayout>
+            <Spinner
+                android:id="@+id/spinnerEngine"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_card"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvModelStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="未导入模型"
+            android:textSize="16sp"
+            android:textColor="@color/danger"
+            android:layout_marginBottom="20dp" />
+
+        <Button
+            android:id="@+id/btnPickModel"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="导入模型文件"
+            android:textColor="@color/bg_dark"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:background="@drawable/btn_primary"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/btnStart"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="开始屏幕检测"
+            android:textColor="@color/bg_dark"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:enabled="false"
+            android:background="@drawable/btn_gradient_start"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/btnStop"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="停止检测"
+            android:textColor="@color/white"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:background="@drawable/btn_danger"
+            android:layout_marginBottom="24dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="使用说明"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/primary_neon"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1. 选择推理引擎\n2. 导入模型文件\n3. 点击“开始屏幕检测”\n4. 授予录屏和悬浮窗权限\n5. 屏幕上会显示检测框\n\nTFLite/ONNX: 导入单个模型文件\nNCNN: 导入 .zip (包含 .param + .bin)\n支持任意输入尺寸的 YOLOv8 模型"
+                android:textSize="14sp"
+                android:textColor="@color/text_secondary"
+                android:lineSpacingMultiplier="1.4" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
