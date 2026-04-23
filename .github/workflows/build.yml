@@ -34,13 +34,26 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Export YOLOv8 TFLite model
+      - name: Export YOLOv8 models
         run: |
           pip install "numpy<2" scipy pillow opencv-python pyyaml requests matplotlib
           pip install ultralytics
-          python -c "from ultralytics import YOLO; YOLO('yolov8n.pt').export(format='tflite')"
+          python3 << 'EOF'
+          from ultralytics import YOLO
+          model = YOLO('yolov8n.pt')
+          # TFLite FP32
+          model.export(format='tflite')
+          # TFLite INT8 (full integer quantization)
+          model.export(format='tflite', int8=True, data='coco128.yaml')
+          # ONNX
+          model.export(format='onnx')
+          EOF
           mkdir -p app/src/main/assets
           cp yolov8n_saved_model/yolov8n_float32.tflite app/src/main/assets/
+          cp yolov8n_saved_model/yolov8n_full_integer_quant.tflite app/src/main/assets/ || echo "INT8 model may have different name"
+          # Find and copy INT8 model with flexible name
+          find yolov8n_saved_model -name "*int*.tflite" -exec cp {} app/src/main/assets/yolov8n_full_integer_quant.tflite \;
+          cp yolov8n.onnx app/src/main/assets/
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3

@@ -11,25 +11,24 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import java.io.File
-import java.io.FileOutputStream
+import com.example.screenyolo.engine.EngineType
 
 class MainActivity : AppCompatActivity() {
 
     companion object {
         const val REQUEST_MEDIA_PROJECTION = 1001
         const val REQUEST_OVERLAY = 1002
-        const val REQUEST_PICK_MODEL = 1003
     }
 
-    private lateinit var btnPickModel: Button
+    private lateinit var spinnerEngine: Spinner
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var tvModelStatus: TextView
@@ -50,7 +49,7 @@ class MainActivity : AppCompatActivity() {
     private val modelMissingReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             runOnUiThread {
-                Toast.makeText(context, "未找到模型，请先导入模型", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "模型加载失败", Toast.LENGTH_LONG).show()
                 updateModelStatus()
             }
         }
@@ -60,39 +59,35 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        btnPickModel = findViewById(R.id.btnPickModel)
+        spinnerEngine = findViewById(R.id.spinnerEngine)
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
         tvModelStatus = findViewById(R.id.tvModelStatus)
 
-        btnPickModel.setOnClickListener { pickModelFile() }
+        // Setup engine spinner
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            EngineType.entries.map { it.displayName }
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerEngine.adapter = adapter
+
         btnStart.setOnClickListener { startDetection() }
         btnStop.setOnClickListener { stopDetection() }
 
-        registerReceiver(modelMissingReceiver, IntentFilter("com.example.screenyolo.MODEL_MISSING"),
-            Context.RECEIVER_EXPORTED)
+        registerReceiver(
+            modelMissingReceiver,
+            IntentFilter("com.example.screenyolo.MODEL_MISSING"),
+            Context.RECEIVER_EXPORTED
+        )
 
         updateModelStatus()
     }
 
     private fun updateModelStatus() {
-        val modelFile = File(filesDir, "model.tflite")
-        if (modelFile.exists()) {
-            tvModelStatus.text = "模型已导入: ${modelFile.name} (${modelFile.length() / 1024} KB)"
-            btnStart.isEnabled = true
-        } else {
-            tvModelStatus.text = "未导入模型"
-            btnStart.isEnabled = false
-        }
-    }
-
-    private fun pickModelFile() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/octet-stream", "application/tflite"))
-        }
-        startActivityForResult(intent, REQUEST_PICK_MODEL)
+        val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
+        tvModelStatus.text = "就绪 | 引擎: ${engineType.displayName}"
     }
 
     private fun startDetection() {
@@ -157,16 +152,18 @@ class MainActivity : AppCompatActivity() {
                 if (resultCode == Activity.RESULT_OK && data != null) {
                     mediaProjectionResultCode = resultCode
                     mediaProjectionData = data
+                    val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
                     val intent = Intent(this, ScreenCaptureService::class.java).apply {
                         putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
                         putExtra(ScreenCaptureService.EXTRA_DATA, data)
+                        putExtra(ScreenCaptureService.EXTRA_ENGINE_TYPE, engineType.ordinal)
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         startForegroundService(intent)
                     } else {
                         startService(intent)
                     }
-                    Toast.makeText(this, "检测已启动", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "检测已启动 [${engineType.displayName}]", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this, "需要录屏权限才能运行", Toast.LENGTH_SHORT).show()
                 }
@@ -178,28 +175,6 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
                 }
             }
-            REQUEST_PICK_MODEL -> {
-                if (resultCode == Activity.RESULT_OK && data != null) {
-                    copyModelFromUri(data.data)
-                }
-            }
-        }
-    }
-
-    private fun copyModelFromUri(uri: Uri?) {
-        if (uri == null) return
-        try {
-            contentResolver.openInputStream(uri)?.use { input ->
-                val outFile = File(filesDir, "model.tflite")
-                FileOutputStream(outFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
-            Toast.makeText(this, "模型导入成功", Toast.LENGTH_SHORT).show()
-            updateModelStatus()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "导入失败: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 

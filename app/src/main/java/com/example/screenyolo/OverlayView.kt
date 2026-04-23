@@ -30,9 +30,9 @@ class OverlayView(context: Context) : View(context) {
     private var scaleX: Float = 1f
     private var scaleY: Float = 1f
 
-    fun setScale(screenWidth: Int, screenHeight: Int) {
-        scaleX = screenWidth / YoloDetector.INPUT_SIZE.toFloat()
-        scaleY = screenHeight / YoloDetector.INPUT_SIZE.toFloat()
+    fun setScale(screenWidth: Int, screenHeight: Int, inputSize: Int = 640) {
+        scaleX = screenWidth / inputSize.toFloat()
+        scaleY = screenHeight / inputSize.toFloat()
     }
 
     fun updateDetections(detections: List<Detection>) {

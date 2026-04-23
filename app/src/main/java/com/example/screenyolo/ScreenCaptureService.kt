@@ -21,13 +21,14 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
-import java.io.File
+import com.example.screenyolo.engine.EngineType
 
 class ScreenCaptureService : Service() {
 
     companion object {
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
+        const val EXTRA_ENGINE_TYPE = "engine_type"
         const val CHANNEL_ID = "screen_yolo_channel"
     }
 
@@ -48,28 +49,24 @@ class ScreenCaptureService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, -1) ?: -1
         val data = intent?.getParcelableExtra<Intent>(EXTRA_DATA)
+        val engineOrdinal = intent?.getIntExtra(EXTRA_ENGINE_TYPE, 0) ?: 0
+        val engineType = EngineType.fromOrdinal(engineOrdinal)
 
         if (resultCode == -1 || data == null) {
             stopSelf()
             return START_NOT_STICKY
         }
 
-        val modelPath = getModelPath()
-        if (modelPath == null) {
+        try {
+            yoloDetector = YoloDetector(this, engineType)
+        } catch (e: Exception) {
+            e.printStackTrace()
             sendBroadcast(Intent("com.example.screenyolo.MODEL_MISSING"))
             stopSelf()
             return START_NOT_STICKY
         }
 
-        try {
-            yoloDetector = YoloDetector(this, modelPath)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            stopSelf()
-            return START_NOT_STICKY
-        }
-
-        startForeground(1, buildNotification())
+        startForeground(1, buildNotification(engineType.displayName))
         startOverlay()
 
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -137,21 +134,7 @@ class ScreenCaptureService : Service() {
     private fun startOverlay() {
         val intent = Intent(this, OverlayService::class.java)
         startService(intent)
-        // Simple binding workaround: we start service and will communicate via broadcast if needed.
-        // For simplicity in this sample, we use a static bridge.
         OverlayServiceHolder.view = null
-        // Actually start and hold reference through a local binder pattern is complex.
-        // We'll use a simpler broadcast-based approach in MainActivity to update overlay.
-    }
-
-    private fun getModelPath(): String? {
-        val localFile = File(filesDir, "model.tflite")
-        if (localFile.exists()) return localFile.absolutePath
-
-        val assetFile = File(filesDir, "yolov8n_float32.tflite")
-        if (assetFile.exists()) return assetFile.absolutePath
-
-        return null
     }
 
     private fun createNotificationChannel() {
@@ -166,9 +149,9 @@ class ScreenCaptureService : Service() {
         }
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(engineName: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("ScreenYOLO")
+            .setContentTitle("ScreenYOLO [$engineName]")
             .setContentText("正在检测屏幕内容...")
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setOngoing(true)
@@ -189,7 +172,6 @@ class ScreenCaptureService : Service() {
     }
 }
 
-// Simple holder to let MainActivity pass overlay service reference.
 object OverlayServiceHolder {
     var view: OverlayView? = null
 }
