@@ -34,6 +34,9 @@ android {
     buildFeatures {
         viewBinding = true
     }
+    ndk {
+        abiFilters += listOf("arm64-v8a")
+    }
 }
 
 dependencies {
