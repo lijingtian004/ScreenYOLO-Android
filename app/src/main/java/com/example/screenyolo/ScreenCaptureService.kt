@@ -40,7 +40,7 @@ class ScreenCaptureService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var isRunning = false
     private var overlayService: OverlayService? = null
-    private val inferIntervalMs = 200L // 5 FPS
+    private val minFrameIntervalMs = 16L // ~60fps cap
 
     // Performance stats
     private val frameTimestamps = ArrayDeque<Long>()
@@ -104,8 +104,8 @@ class ScreenCaptureService : Service() {
         handler.postDelayed({
             if (!isRunning) return@postDelayed
             processFrame()
-            scheduleNextFrame()
-        }, inferIntervalMs)
+            if (isRunning) scheduleNextFrame()
+        }, minFrameIntervalMs)
     }
 
     private fun processFrame() {
