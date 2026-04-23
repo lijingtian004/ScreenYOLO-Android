@@ -10,14 +10,31 @@ class YoloDetector(context: Context, engineType: EngineType) {
     private val engine: InferenceEngine
 
     init {
-        val modelFile = File(context.filesDir, "custom_model")
-        if (!modelFile.exists()) {
-            throw IllegalStateException("Model file not found. Please import a model first.")
-        }
         engine = when (engineType) {
-            EngineType.TFLITE_FP32 -> TFLiteEngine(modelFile.absolutePath, isQuantized = false)
-            EngineType.TFLITE_INT8 -> TFLiteEngine(modelFile.absolutePath, isQuantized = true)
-            EngineType.ONNX -> OnnxEngine(modelFile.absolutePath)
+            EngineType.TFLITE_FP32 -> {
+                val f = File(context.filesDir, "custom_model")
+                if (!f.exists()) throw IllegalStateException("Model file not found. Please import a model first.")
+                TFLiteEngine(f.absolutePath, isQuantized = false)
+            }
+            EngineType.TFLITE_INT8 -> {
+                val f = File(context.filesDir, "custom_model")
+                if (!f.exists()) throw IllegalStateException("Model file not found. Please import a model first.")
+                TFLiteEngine(f.absolutePath, isQuantized = true)
+            }
+            EngineType.ONNX -> {
+                val f = File(context.filesDir, "custom_model")
+                if (!f.exists()) throw IllegalStateException("Model file not found. Please import a model first.")
+                OnnxEngine(f.absolutePath)
+            }
+            EngineType.NCNN -> {
+                val dir = File(context.filesDir, "ncnn_model")
+                val param = dir.listFiles { _, name -> name.endsWith(".param") }?.firstOrNull()
+                val bin = dir.listFiles { _, name -> name.endsWith(".bin") }?.firstOrNull()
+                if (param == null || bin == null) {
+                    throw IllegalStateException("NCNN model not found. Please import a .zip containing .param and .bin files.")
+                }
+                NcnnEngine(param.absolutePath, bin.absolutePath)
+            }
         }
     }
 

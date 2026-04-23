@@ -91,27 +91,56 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshModelStatus() {
-        customModelFile = File(filesDir, "custom_model")
-        if (customModelFile?.exists() == true) {
-            tvModelStatus.text = "已导入: ${customModelFile?.name} (${customModelFile?.length()?.div(1024)?.let { if (it < 1024) "${it}KB" else "${it / 1024}MB" }})"
-            btnStart.isEnabled = true
+        val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
+        if (engineType == EngineType.NCNN) {
+            val dir = File(filesDir, "ncnn_model")
+            val hasParam = dir.listFiles { _, name -> name.endsWith(".param") }?.isNotEmpty() == true
+            val hasBin = dir.listFiles { _, name -> name.endsWith(".bin") }?.isNotEmpty() == true
+            if (hasParam && hasBin) {
+                tvModelStatus.text = "NCNN 模型已导入"
+                btnStart.isEnabled = true
+            } else {
+                tvModelStatus.text = "未导入 NCNN 模型 (.zip)"
+                btnStart.isEnabled = false
+            }
         } else {
-            tvModelStatus.text = "未导入模型"
-            btnStart.isEnabled = false
+            customModelFile = File(filesDir, "custom_model")
+            if (customModelFile?.exists() == true) {
+                val size = customModelFile?.length()?.div(1024) ?: 0
+                tvModelStatus.text = "已导入: ${customModelFile?.name} (${if (size < 1024) "${size}KB" else "${size / 1024}MB"})"
+                btnStart.isEnabled = true
+            } else {
+                tvModelStatus.text = "未导入模型"
+                btnStart.isEnabled = false
+            }
         }
     }
 
     private fun pickModelFile() {
+        val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/octet-stream", "application/tflite"))
+            val mimeTypes = if (engineType == EngineType.NCNN) {
+                arrayOf("application/zip", "application/x-zip-compressed")
+            } else {
+                arrayOf("application/octet-stream", "application/tflite")
+            }
+            putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
         }
         startActivityForResult(intent, REQUEST_PICK_MODEL)
     }
 
     private fun startDetection() {
-        if (customModelFile?.exists() != true) {
+        val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
+        val modelReady = if (engineType == EngineType.NCNN) {
+            val dir = File(filesDir, "ncnn_model")
+            dir.listFiles { _, name -> name.endsWith(".param") }?.isNotEmpty() == true &&
+            dir.listFiles { _, name -> name.endsWith(".bin") }?.isNotEmpty() == true
+        } else {
+            File(filesDir, "custom_model").exists()
+        }
+        if (!modelReady) {
             Toast.makeText(this, "请先导入模型文件", Toast.LENGTH_SHORT).show()
             return
         }
@@ -210,11 +239,37 @@ class MainActivity : AppCompatActivity() {
 
     private fun copyModelFromUri(uri: Uri?) {
         if (uri == null) return
+        val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
         try {
-            contentResolver.openInputStream(uri)?.use { input ->
-                val outFile = File(filesDir, "custom_model")
-                FileOutputStream(outFile).use { output ->
-                    input.copyTo(output)
+            if (engineType == EngineType.NCNN) {
+                // Extract zip to ncnn_model/
+                val dir = File(filesDir, "ncnn_model")
+                dir.deleteRecursively()
+                dir.mkdirs()
+                contentResolver.openInputStream(uri)?.use { input ->
+                    java.util.zip.ZipInputStream(input).use { zis ->
+                        var entry: java.util.zip.ZipEntry?
+                        while (zis.nextEntry.also { entry = it } != null) {
+                            entry ?: continue
+                            val outFile = File(dir, entry!!.name)
+                            if (entry!!.isDirectory) {
+                                outFile.mkdirs()
+                            } else {
+                                outFile.parentFile?.mkdirs()
+                                FileOutputStream(outFile).use { fos ->
+                                    zis.copyTo(fos)
+                                }
+                            }
+                            zis.closeEntry()
+                        }
+                    }
+                }
+            } else {
+                contentResolver.openInputStream(uri)?.use { input ->
+                    val outFile = File(filesDir, "custom_model")
+                    FileOutputStream(outFile).use { output ->
+                        input.copyTo(output)
+                    }
                 }
             }
             Toast.makeText(this, "模型导入成功", Toast.LENGTH_SHORT).show()

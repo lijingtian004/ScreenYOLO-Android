@@ -13,7 +13,8 @@ interface InferenceEngine {
 enum class EngineType(val displayName: String) {
     TFLITE_FP32("TFLite FP32"),
     TFLITE_INT8("TFLite INT8"),
-    ONNX("ONNX Runtime");
+    ONNX("ONNX Runtime"),
+    NCNN("NCNN");
 
     companion object {
         fun fromOrdinal(ordinal: Int): EngineType = entries.getOrElse(ordinal) { TFLITE_FP32 }

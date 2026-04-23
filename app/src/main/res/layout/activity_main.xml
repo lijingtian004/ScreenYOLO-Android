@@ -39,7 +39,7 @@
         android:id="@+id/btnPickModel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="导入模型文件 (.tflite / .onnx)"
+        android:text="导入模型文件"
         android:layout_marginBottom="16dp" />
 
     <Button
@@ -59,7 +59,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="使用说明：\n1. 选择推理引擎\n2. 导入自己的模型文件\n3. 点击“开始屏幕检测”\n4. 授予录屏和悬浮窗权限\n5. 屏幕上会显示检测框\n\n支持: TFLite (.tflite) / ONNX (.onnx)\nYOLOv8 模型，输入尺寸 640x640"
+        android:text="使用说明：\n1. 选择推理引擎\n2. 导入模型文件\n3. 点击“开始屏幕检测”\n4. 授予录屏和悬浮窗权限\n5. 屏幕上会显示检测框\n\nTFLite/ONNX: 导入单个模型文件\nNCNN: 导入 .zip (包含 .param + .bin)\n支持任意输入尺寸的 YOLOv8 模型"
         android:textSize="14sp"
         android:layout_marginTop="24dp"
         android:lineSpacingMultiplier="1.3" />
