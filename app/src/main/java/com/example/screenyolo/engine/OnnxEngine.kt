@@ -34,7 +34,8 @@ class OnnxEngine(modelPath: String) : InferenceEngine {
         session = env.createSession(modelPath, opts)
         // Auto-detect input size from ONNX model: NCHW [1, 3, H, W]
         val inputInfo = session.inputInfo.values.first()
-        val shape = inputInfo.info.shape
+        val tensorInfo = inputInfo.info as ai.onnxruntime.TensorInfo
+        val shape = tensorInfo.shape
         inputSize = shape[2].toInt()  // H
     }
 
