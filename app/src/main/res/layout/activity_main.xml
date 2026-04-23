@@ -97,6 +97,17 @@
             android:textStyle="bold"
             android:textSize="16sp"
             android:background="@drawable/btn_danger"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/btnLogs"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="查看日志"
+            android:textColor="@color/primary_neon"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:background="@drawable/bg_card"
             android:layout_marginBottom="24dp" />
 
         <LinearLayout

@@ -41,6 +41,7 @@ class ScreenCaptureService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var isRunning = false
     private var overlayService: OverlayService? = null
+    private lateinit var logManager: LogManager
 
     // Background inference thread
     private var inferThread: HandlerThread? = null
@@ -53,6 +54,7 @@ class ScreenCaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        logManager = LogManager.getInstance(this)
         createNotificationChannel()
     }
 
@@ -63,14 +65,17 @@ class ScreenCaptureService : Service() {
         val engineType = EngineType.fromOrdinal(engineOrdinal)
 
         if (resultCode == -1 || data == null) {
+            logManager.logEvent("ERROR", "Invalid intent, stopping service")
             stopSelf()
             return START_NOT_STICKY
         }
 
         try {
             yoloDetector = YoloDetector(this, engineType)
+            logManager.logEvent("INFO", "Model loaded: ${engineType.displayName}")
         } catch (e: Exception) {
             e.printStackTrace()
+            logManager.logEvent("ERROR", "Model load failed: ${e.message}")
             sendBroadcast(Intent("com.example.screenyolo.MODEL_MISSING"))
             stopSelf()
             return START_NOT_STICKY
@@ -147,6 +152,13 @@ class ScreenCaptureService : Service() {
                     overlayService?.updateDetections(results)
                     overlayService?.updateStats(fps, lastLatencyMs)
                     isInferring = false
+
+                    // Log inference results
+                    if (results.isNotEmpty()) {
+                        val top = results.maxByOrNull { it.confidence }
+                        logManager.logEvent("DETECT", "${results.size} objects, top=${top?.label}(${"%.2f".format(top?.confidence ?: 0f)}), latency=${latency}ms, fps=${"%.1f".format(fps)}")
+                    }
+                    logManager.logEvent("PERF", "latency=${latency}ms, fps=${"%.1f".format(fps)}, objects=${results.size}")
                 }
             }
         }
@@ -199,6 +211,7 @@ class ScreenCaptureService : Service() {
 
     override fun onDestroy() {
         isRunning = false
+        logManager.logEvent("INFO", "ScreenCaptureService stopped")
         handler.removeCallbacksAndMessages(null)
         inferThread?.quitSafely()
         virtualDisplay?.release()

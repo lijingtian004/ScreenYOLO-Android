@@ -35,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPickModel: Button
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
+    private lateinit var btnLogs: Button
     private lateinit var tvModelStatus: TextView
 
     private var mediaProjectionResultCode: Int = 0
@@ -67,6 +68,7 @@ class MainActivity : AppCompatActivity() {
         btnPickModel = findViewById(R.id.btnPickModel)
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
+        btnLogs = findViewById(R.id.btnLogs)
         tvModelStatus = findViewById(R.id.tvModelStatus)
 
         val adapter = ArrayAdapter(
@@ -80,6 +82,7 @@ class MainActivity : AppCompatActivity() {
         btnPickModel.setOnClickListener { pickModelFile() }
         btnStart.setOnClickListener { startDetection() }
         btnStop.setOnClickListener { stopDetection() }
+        btnLogs.setOnClickListener { startActivity(Intent(this, LogActivity::class.java)) }
 
         registerReceiver(
             modelMissingReceiver,
