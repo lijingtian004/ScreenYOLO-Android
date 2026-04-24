@@ -7,7 +7,7 @@ import android.os.Parcelable
  * 自定义截图区域配置
  * 支持预设尺寸和自定义像素尺寸
  */
-data class CaptureRegion(
+class CaptureRegion(
     val x: Int = 0,
     val y: Int = 0,
     val width: Int = 0,
@@ -70,6 +70,36 @@ data class CaptureRegion(
             val h = (screenHeight * preset.heightPercent / 100)
             return CaptureRegion(x, y, w, h, true)
         }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is CaptureRegion) return false
+        return x == other.x && y == other.y && width == other.width &&
+                height == other.height && enabled == other.enabled
+    }
+
+    override fun hashCode(): Int {
+        var result = x
+        result = 31 * result + y
+        result = 31 * result + width
+        result = 31 * result + height
+        result = 31 * result + enabled.hashCode()
+        return result
+    }
+
+    override fun toString(): String {
+        return "CaptureRegion(x=$x, y=$y, width=$width, height=$height, enabled=$enabled)"
+    }
+
+    fun copy(
+        x: Int = this.x,
+        y: Int = this.y,
+        width: Int = this.width,
+        height: Int = this.height,
+        enabled: Boolean = this.enabled
+    ): CaptureRegion {
+        return CaptureRegion(x, y, width, height, enabled)
     }
 
     /**
