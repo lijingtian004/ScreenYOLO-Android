@@ -235,6 +235,8 @@ Java_com_example_screenyolo_engine_NcnnEngine_nativeDetect(JNIEnv* env, jobject 
         return env->NewObjectArray(0, env->FindClass("com/example/screenyolo/Detection"), nullptr);
     }
 
+    LOGE("DEBUG: output shape w=%d h=%d c=%d", out.w, out.h, out.c);
+
     // Auto-detect output layout and version (v5=85 cols, v8/v11=84 cols)
     bool transposed = false;   // true: [cols, N], false: [N, cols]
     int num_anchors = 0;
