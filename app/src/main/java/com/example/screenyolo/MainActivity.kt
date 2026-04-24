@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.Context
+import android.content.SharedPreferences
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
@@ -26,6 +28,12 @@ import java.io.FileOutputStream
 class MainActivity : AppCompatActivity() {
 
     companion object {
+        const val PREFS_NAME = "ScreenYOLO_Prefs"
+        const val KEY_INPUT_SIZE = "input_size"
+        val INPUT_SIZE_OPTIONS = intArrayOf(256, 320, 640)
+    }
+
+    companion object {
         const val REQUEST_MEDIA_PROJECTION = 1001
         const val REQUEST_OVERLAY = 1002
         const val REQUEST_PICK_MODEL = 1003
@@ -36,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var btnLogs: Button
+    private lateinit var spinnerInputSize: Spinner
     private lateinit var tvModelStatus: TextView
 
     private var mediaProjectionResultCode: Int = 0
@@ -90,6 +99,19 @@ class MainActivity : AppCompatActivity() {
             IntentFilter("com.example.screenyolo.MODEL_MISSING"),
             Context.RECEIVER_EXPORTED
         )
+
+        spinnerInputSize = findViewById(R.id.spinnerInputSize)
+
+        // Input size dropdown
+        val sizeAdapter = ArrayAdapter(this, R.layout.spinner_item, INPUT_SIZE_OPTIONS.map { "${it}px" })
+        sizeAdapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
+        spinnerInputSize.adapter = sizeAdapter
+
+        // Load saved input size
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedSize = prefs.getInt(KEY_INPUT_SIZE, 640)
+        val savedIndex = INPUT_SIZE_OPTIONS.indexOf(savedSize).takeIf { it >= 0 } ?: 2
+        spinnerInputSize.setSelection(savedIndex)
 
         refreshModelStatus()
     }
@@ -317,7 +339,20 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             Toast.makeText(this, "模型导入成功", Toast.LENGTH_SHORT).show()
-            refreshModelStatus()
+            spinnerInputSize = findViewById(R.id.spinnerInputSize)
+
+        // Input size dropdown
+        val sizeAdapter = ArrayAdapter(this, R.layout.spinner_item, INPUT_SIZE_OPTIONS.map { "${it}px" })
+        sizeAdapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
+        spinnerInputSize.adapter = sizeAdapter
+
+        // Load saved input size
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedSize = prefs.getInt(KEY_INPUT_SIZE, 640)
+        val savedIndex = INPUT_SIZE_OPTIONS.indexOf(savedSize).takeIf { it >= 0 } ?: 2
+        spinnerInputSize.setSelection(savedIndex)
+
+        refreshModelStatus()
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "导入失败: ${e.message}", Toast.LENGTH_LONG).show()

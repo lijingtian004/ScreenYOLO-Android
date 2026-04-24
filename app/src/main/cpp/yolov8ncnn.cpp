@@ -303,6 +303,8 @@ Java_com_example_screenyolo_engine_NcnnEngine_nativeDetect(JNIEnv* env, jobject 
 
     nms(proposals, 0.45f);
 
+    LOGE("DEBUG: proposals after parse=%zu, after nms=%zu", proposals.size(), proposals.size());  // size unchanged since nms is in-place
+
     jclass detClass = env->FindClass("com/example/screenyolo/Detection");
     if (detClass == nullptr) {
         LOGE("Detection class not found");

@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.os.SystemClock
 import com.example.screenyolo.Detection
 
-class NcnnEngine(paramPath: String, binPath: String) : InferenceEngine {
+class NcnnEngine(paramPath: String, binPath: String, userInputSize: Int = -1) : InferenceEngine {
 
     companion object {
         const val NUM_CLASSES = 80
@@ -25,8 +25,12 @@ class NcnnEngine(paramPath: String, binPath: String) : InferenceEngine {
     private external fun nativeDetect(bitmap: Bitmap, inputSize: Int): Array<Detection>
 
     init {
-        // Try to auto-detect input size from param file
-        inputSize = readInputSizeFromParam(paramPath)
+        // Determine input size: user preference overrides auto-detect
+        inputSize = if (userInputSize > 0) {
+            userInputSize
+        } else {
+            readInputSizeFromParam(paramPath)
+        }
         val success = nativeLoadModel(paramPath, binPath, inputSize)
         if (!success) {
             throw RuntimeException("Failed to load NCNN model: $paramPath + $binPath")

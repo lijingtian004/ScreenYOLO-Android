@@ -1,6 +1,8 @@
 package com.example.screenyolo
 
 import android.content.Context
+import android.content.SharedPreferences
+
 import android.graphics.Bitmap
 import com.example.screenyolo.engine.*
 import java.io.File
@@ -47,7 +49,10 @@ class YoloDetector(context: Context, engineType: EngineType) {
                 if (param == null || bin == null) {
                     throw IllegalStateException("NCNN model not found. Please import a .zip containing .param and .bin files.")
                 }
-                NcnnEngine(param.absolutePath, bin.absolutePath)
+                // Read user input size preference
+                val prefs = context.getSharedPreferences("ScreenYOLO_Prefs", Context.MODE_PRIVATE)
+                val userInputSize = prefs.getInt("input_size", -1)
+                NcnnEngine(param.absolutePath, bin.absolutePath, userInputSize)
             }
         }
     }
@@ -55,7 +60,12 @@ class YoloDetector(context: Context, engineType: EngineType) {
     val engineName: String get() = engine.name
     val inputSize: Int get() = engine.inputSize
 
-    fun detect(bitmap: Bitmap): List<Detection> = engine.detect(bitmap)
+    fun detect(bitmap: Bitmap): List<Detection> {
+        android.util.Log.d("YoloDetector", "detect() input bitmap: ${bitmap.width}x${bitmap.height}, engine inputSize=$inputSize")
+        val results = engine.detect(bitmap)
+        android.util.Log.d("YoloDetector", "detect() result count: ${results.size}")
+        return results
+    }
 
     fun close() = engine.close()
 }
