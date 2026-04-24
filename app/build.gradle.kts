@@ -49,5 +49,5 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
 
     // ncnn - 腾讯开源移动端推理框架
-    implementation("com.tencent.ncnn:ncnn:1.0.20240102")
+    implementation("com.tencent.ncnn:ncnn:20240102-android")
 }
