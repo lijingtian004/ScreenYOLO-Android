@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private var mediaProjectionResultCode: Int = 0
     private var mediaProjectionData: Intent? = null
     private var customModelFile: File? = null
+    private var pendingStartAfterOverlay = false
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -93,17 +94,29 @@ class MainActivity : AppCompatActivity() {
         refreshModelStatus()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Auto-continue if user just granted overlay permission from settings
+        if (pendingStartAfterOverlay && Settings.canDrawOverlays(this)) {
+            pendingStartAfterOverlay = false
+            Toast.makeText(this, "悬浮窗权限已获取，继续启动", Toast.LENGTH_SHORT).show()
+            startDetection()
+        }
+    }
+
     private fun refreshModelStatus() {
         val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
         if (engineType == EngineType.NCNN) {
             val dir = File(filesDir, "ncnn_model")
-            val hasParam = dir.listFiles { _, name -> name.endsWith(".param") }?.isNotEmpty() == true
-            val hasBin = dir.listFiles { _, name -> name.endsWith(".bin") }?.isNotEmpty() == true
+            val hasParam = findModelFile(dir, ".param") != null
+            val hasBin = findModelFile(dir, ".bin") != null
             if (hasParam && hasBin) {
                 tvModelStatus.text = "NCNN 模型已导入"
+                tvModelStatus.setTextColor(getColor(R.color.success))
                 btnStart.isEnabled = true
             } else {
                 tvModelStatus.text = "未导入 NCNN 模型 (.zip)"
+                tvModelStatus.setTextColor(getColor(R.color.danger))
                 btnStart.isEnabled = false
             }
         } else {
@@ -111,12 +124,29 @@ class MainActivity : AppCompatActivity() {
             if (customModelFile?.exists() == true) {
                 val size = customModelFile?.length()?.div(1024) ?: 0
                 tvModelStatus.text = "已导入: ${customModelFile?.name} (${if (size < 1024) "${size}KB" else "${size / 1024}MB"})"
+                tvModelStatus.setTextColor(getColor(R.color.success))
                 btnStart.isEnabled = true
             } else {
                 tvModelStatus.text = "未导入模型"
+                tvModelStatus.setTextColor(getColor(R.color.danger))
                 btnStart.isEnabled = false
             }
         }
+    }
+
+    // Recursively find model file in dir (handles zip with subfolders)
+    private fun findModelFile(dir: File, suffix: String): File? {
+        if (!dir.exists() || !dir.isDirectory) return null
+        dir.listFiles()?.forEach { file ->
+            if (file.isFile && file.name.endsWith(suffix, ignoreCase = true)) {
+                return file
+            }
+            if (file.isDirectory) {
+                val found = findModelFile(file, suffix)
+                if (found != null) return found
+            }
+        }
+        return null
     }
 
     private fun pickModelFile() {
@@ -135,11 +165,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startDetection() {
+        Toast.makeText(this, "开始检测流程...", Toast.LENGTH_SHORT).show()
+
         val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
         val modelReady = if (engineType == EngineType.NCNN) {
             val dir = File(filesDir, "ncnn_model")
-            dir.listFiles { _, name -> name.endsWith(".param") }?.isNotEmpty() == true &&
-            dir.listFiles { _, name -> name.endsWith(".bin") }?.isNotEmpty() == true
+            findModelFile(dir, ".param") != null && findModelFile(dir, ".bin") != null
         } else {
             File(filesDir, "custom_model").exists()
         }
@@ -147,9 +178,11 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "请先导入模型文件", Toast.LENGTH_SHORT).show()
             return
         }
+        Toast.makeText(this, "模型检查通过", Toast.LENGTH_SHORT).show()
 
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "请先授予悬浮窗权限", Toast.LENGTH_SHORT).show()
+            pendingStartAfterOverlay = true
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:$packageName")
@@ -157,6 +190,7 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(intent, REQUEST_OVERLAY)
             return
         }
+        Toast.makeText(this, "悬浮窗权限已获取", Toast.LENGTH_SHORT).show()
 
         val permissions = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -173,9 +207,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (permissions.isNotEmpty()) {
+            Toast.makeText(this, "请求运行时权限...", Toast.LENGTH_SHORT).show()
             permissionLauncher.launch(permissions.toTypedArray())
             return
         }
+        Toast.makeText(this, "所有权限就绪，请求录屏...", Toast.LENGTH_SHORT).show()
 
         requestMediaProjection()
     }
@@ -187,12 +223,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkOverlayPermission() {
         if (!Settings.canDrawOverlays(this)) {
+            pendingStartAfterOverlay = true
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:$packageName")
             )
             startActivityForResult(intent, REQUEST_OVERLAY)
         } else {
+            Toast.makeText(this, "所有权限就绪，请求录屏...", Toast.LENGTH_SHORT).show()
             requestMediaProjection()
         }
     }
@@ -210,6 +248,7 @@ class MainActivity : AppCompatActivity() {
                     mediaProjectionResultCode = resultCode
                     mediaProjectionData = data
                     val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
+                    Toast.makeText(this, "录屏权限已获取，启动服务...", Toast.LENGTH_SHORT).show()
                     val intent = Intent(this, ScreenCaptureService::class.java).apply {
                         putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
                         putExtra(ScreenCaptureService.EXTRA_DATA, data)
@@ -222,12 +261,15 @@ class MainActivity : AppCompatActivity() {
                     }
                     Toast.makeText(this, "检测已启动 [${engineType.displayName}]", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, "需要录屏权限才能运行", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "需要录屏权限才能运行 (result=$resultCode)", Toast.LENGTH_SHORT).show()
                 }
             }
             REQUEST_OVERLAY -> {
+                // Some devices don't call onActivityResult for ACTION_MANAGE_OVERLAY_PERMISSION
+                // onResume handles the auto-continuation
                 if (Settings.canDrawOverlays(this)) {
-                    requestMediaProjection()
+                    Toast.makeText(this, "悬浮窗权限已获取，继续启动...", Toast.LENGTH_SHORT).show()
+                    startDetection()
                 } else {
                     Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
                 }
@@ -245,7 +287,6 @@ class MainActivity : AppCompatActivity() {
         val engineType = EngineType.fromOrdinal(spinnerEngine.selectedItemPosition)
         try {
             if (engineType == EngineType.NCNN) {
-                // Extract zip to ncnn_model/
                 val dir = File(filesDir, "ncnn_model")
                 dir.deleteRecursively()
                 dir.mkdirs()

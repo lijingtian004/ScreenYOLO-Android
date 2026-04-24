@@ -40,7 +40,6 @@ class ScreenCaptureService : Service() {
     private var yoloDetector: YoloDetector? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isRunning = false
-    private var overlayService: OverlayService? = null
     private lateinit var logManager: LogManager
 
     // Background inference thread
@@ -56,6 +55,9 @@ class ScreenCaptureService : Service() {
         super.onCreate()
         logManager = LogManager.getInstance(this)
         createNotificationChannel()
+        // MUST call startForeground within 5s of startForegroundService()
+        startForeground(1, buildNotification("ScreenYOLO"))
+        logManager.logEvent("INFO", "ScreenCaptureService onCreate")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -64,54 +66,87 @@ class ScreenCaptureService : Service() {
         val engineOrdinal = intent?.getIntExtra(EXTRA_ENGINE_TYPE, 0) ?: 0
         val engineType = EngineType.fromOrdinal(engineOrdinal)
 
+        logManager.logEvent("INFO", "onStartCommand engine=${engineType.displayName} resultCode=$resultCode")
+
         if (data == null) {
             logManager.logEvent("ERROR", "Missing MediaProjection data, stopping service")
             stopSelf()
             return START_NOT_STICKY
         }
 
-        try {
-            yoloDetector = YoloDetector(this, engineType)
-            logManager.logEvent("INFO", "Model loaded: ${engineType.displayName}")
-        } catch (e: Exception) {
-            e.printStackTrace()
-            logManager.logEvent("ERROR", "Model load failed: ${e.message}")
-            sendBroadcast(Intent("com.example.screenyolo.MODEL_MISSING"))
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        // Start overlay first (lightweight)
+        startOverlay()
 
-        // Start background inference thread
+        // Start background inference thread BEFORE loading model
         inferThread = HandlerThread("YoloInference").apply { start() }
         inferHandler = Handler(inferThread!!.looper)
 
-        startForeground(1, buildNotification(engineType.displayName))
-        startOverlay()
+        // Update notification with actual engine name
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager?.notify(1, buildNotification(engineType.displayName))
 
-        val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        mediaProjection = projectionManager.getMediaProjection(resultCode, data)
+        // Load model on background thread to avoid blocking
+        inferHandler?.post {
+            try {
+                yoloDetector = YoloDetector(this, engineType)
+                logManager.logEvent("INFO", "Model loaded: ${engineType.displayName}")
 
-        val metrics = DisplayMetrics()
-        val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        wm.defaultDisplay.getRealMetrics(metrics)
-        val width = metrics.widthPixels
-        val height = metrics.heightPixels
-        val density = metrics.densityDpi
-
-        overlayService?.setScale(width, height, yoloDetector?.inputSize ?: 640)
-
-        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-        virtualDisplay = mediaProjection?.createVirtualDisplay(
-            "ScreenYOLO",
-            width, height, density,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader?.surface, null, null
-        )
-
-        isRunning = true
-        scheduleNextFrame()
+                // Now set up MediaProjection on main thread
+                handler.post {
+                    setupMediaProjection(resultCode, data, engineType)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                logManager.logEvent("ERROR", "Model load failed: ${e.message}")
+                sendBroadcast(Intent("com.example.screenyolo.MODEL_MISSING"))
+                stopSelf()
+            }
+        }
 
         return START_STICKY
+    }
+
+    private fun setupMediaProjection(resultCode: Int, data: Intent, engineType: EngineType) {
+        try {
+            val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            mediaProjection = projectionManager.getMediaProjection(resultCode, data)
+
+            if (mediaProjection == null) {
+                logManager.logEvent("ERROR", "MediaProjection is null")
+                stopSelf()
+                return
+            }
+
+            val metrics = DisplayMetrics()
+            val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            wm.defaultDisplay.getRealMetrics(metrics)
+            val width = metrics.widthPixels
+            val height = metrics.heightPixels
+            val density = metrics.densityDpi
+
+            OverlayService.instance?.setScale(width, height, yoloDetector?.inputSize ?: 640)
+
+            imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+            virtualDisplay = mediaProjection?.createVirtualDisplay(
+                "ScreenYOLO",
+                width, height, density,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                imageReader?.surface, null, null
+            )
+
+            if (virtualDisplay == null) {
+                logManager.logEvent("ERROR", "VirtualDisplay creation failed")
+                stopSelf()
+                return
+            }
+
+            isRunning = true
+            scheduleNextFrame()
+            logManager.logEvent("INFO", "Detection started, resolution=${width}x${height}")
+        } catch (e: Exception) {
+            logManager.logEvent("ERROR", "setupMediaProjection failed: ${e.message}")
+            stopSelf()
+        }
     }
 
     private fun scheduleNextFrame() {
@@ -119,11 +154,11 @@ class ScreenCaptureService : Service() {
             if (!isRunning) return@postDelayed
             processFrame()
             if (isRunning) scheduleNextFrame()
-        }, 8L) // ~120fps loop cap, actual speed limited by inference
+        }, 8L)
     }
 
     private fun processFrame() {
-        if (isInferring) return // Skip if background thread still busy
+        if (isInferring) return
 
         val image = imageReader?.acquireLatestImage() ?: return
         val bitmap = imageToBitmap(image)
@@ -141,7 +176,6 @@ class ScreenCaptureService : Service() {
                     if (!isRunning) return@post
                     lastLatencyMs = latency
 
-                    // Update FPS: count completed inferences in last 1000ms
                     val now = SystemClock.elapsedRealtime()
                     frameTimestamps.addLast(now)
                     while (frameTimestamps.isNotEmpty() && now - frameTimestamps.first() > 1000L) {
@@ -149,11 +183,10 @@ class ScreenCaptureService : Service() {
                     }
                     val fps = frameTimestamps.size.toFloat()
 
-                    overlayService?.updateDetections(results)
-                    overlayService?.updateStats(fps, lastLatencyMs)
+                    OverlayService.instance?.updateDetections(results)
+                    OverlayService.instance?.updateStats(fps, lastLatencyMs)
                     isInferring = false
 
-                    // Log inference results
                     if (results.isNotEmpty()) {
                         val top = results.maxByOrNull { it.confidence }
                         logManager.logEvent("DETECT", "${results.size} objects, top=${top?.label}(${"%.2f".format(top?.confidence ?: 0f)}), latency=${latency}ms, fps=${"%.1f".format(fps)}")
@@ -182,7 +215,11 @@ class ScreenCaptureService : Service() {
 
     private fun startOverlay() {
         val intent = Intent(this, OverlayService::class.java)
-        startService(intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
         OverlayServiceHolder.view = null
     }
 

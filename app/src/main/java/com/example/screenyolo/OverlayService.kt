@@ -8,11 +8,16 @@ import android.view.WindowManager
 
 class OverlayService : Service() {
 
+    companion object {
+        var instance: OverlayService? = null
+    }
+
     private lateinit var windowManager: WindowManager
     private lateinit var overlayView: OverlayView
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         overlayView = OverlayView(this)
 
@@ -42,6 +47,7 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent): IBinder? = null
 
     override fun onDestroy() {
+        instance = null
         super.onDestroy()
         if (::overlayView.isInitialized) {
             windowManager.removeView(overlayView)
