@@ -40,7 +40,7 @@ class ScreenCaptureService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
-    private var yoloDetector: YoloDetector? = null
+    private var detector: Detector? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isRunning = false
     private val inferIntervalMs = 200L // 限制 5 FPS，避免过热和卡顿
@@ -59,19 +59,23 @@ class ScreenCaptureService : Service() {
             return START_NOT_STICKY
         }
 
-        val modelPath = getModelPath()
-        if (modelPath == null) {
+        val modelInfo = getModelPath()
+        if (modelInfo == null) {
             sendBroadcast(Intent("com.example.screenyolo.MODEL_MISSING"))
             stopSelf()
             return START_NOT_STICKY
         }
 
         try {
-            yoloDetector = YoloDetector(this, modelPath)
+            // 根据模型类型创建对应的检测器
+            detector = when (modelInfo.type) {
+                ModelType.TFLITE -> YoloDetector(this, modelInfo.path)
+                ModelType.NCNN -> NcnnDetector(this, modelInfo.paramPath!!, modelInfo.binPath!!)
+            }
             // 应用类别过滤设置
             val enabledClasses = intent?.getStringArrayListExtra(EXTRA_ENABLED_CLASSES)
             if (enabledClasses != null && enabledClasses.isNotEmpty()) {
-                yoloDetector?.setEnabledClasses(enabledClasses.toSet())
+                detector?.setEnabledClasses(enabledClasses.toSet())
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -129,7 +133,7 @@ class ScreenCaptureService : Service() {
         image.close()
 
         if (bitmap != null) {
-            val results = yoloDetector?.detect(bitmap) ?: emptyList()
+            val results = detector?.detect(bitmap) ?: emptyList()
             // 通过广播发送检测结果给 OverlayService
             OverlayService.sendDetections(this, results)
             bitmap.recycle()
@@ -171,11 +175,45 @@ class ScreenCaptureService : Service() {
     }
 
     /**
-     * 获取模型文件路径
+     * 模型类型枚举
      */
-    private fun getModelPath(): String? {
-        val localFile = File(filesDir, "model.tflite")
-        if (localFile.exists()) return localFile.absolutePath
+    enum class ModelType {
+        TFLITE, NCNN
+    }
+
+    /**
+     * 模型信息数据类
+     */
+    data class ModelInfo(
+        val type: ModelType,
+        val path: String,
+        val paramPath: String? = null,
+        val binPath: String? = null
+    )
+
+    /**
+     * 获取模型文件路径
+     * 支持 TFLite (.tflite) 和 ncnn (.param + .bin) 格式
+     */
+    private fun getModelPath(): ModelInfo? {
+        // 检查 TFLite 模型
+        val tfliteFile = File(filesDir, "model.tflite")
+        if (tfliteFile.exists()) {
+            return ModelInfo(ModelType.TFLITE, tfliteFile.absolutePath)
+        }
+
+        // 检查 ncnn 模型（需要 .param 和 .bin 两个文件）
+        val paramFile = File(filesDir, "model.param")
+        val binFile = File(filesDir, "model.bin")
+        if (paramFile.exists() && binFile.exists()) {
+            return ModelInfo(
+                ModelType.NCNN,
+                paramFile.absolutePath,
+                paramFile.absolutePath,
+                binFile.absolutePath
+            )
+        }
+
         return null
     }
 
@@ -214,7 +252,7 @@ class ScreenCaptureService : Service() {
         virtualDisplay?.release()
         imageReader?.close()
         mediaProjection?.stop()
-        yoloDetector?.close()
+        detector?.close()
         stopService(Intent(this, OverlayService::class.java))
         super.onDestroy()
     }

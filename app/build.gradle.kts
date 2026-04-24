@@ -42,7 +42,12 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.lifecycle:lifecycle-service:2.7.0")
+
+    // TensorFlow Lite
     implementation("org.tensorflow:tensorflow-lite:2.14.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
     implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
+
+    // ncnn - 腾讯开源移动端推理框架
+    implementation("com.tencent.ncnn:ncnn:1.0.20240102")
 }

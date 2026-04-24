@@ -94,16 +94,29 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 更新模型状态显示
+     * 支持 TFLite (.tflite) 和 ncnn (.param + .bin) 格式
      */
     private fun updateModelStatus() {
-        val modelFile = File(filesDir, "model.tflite")
-        if (modelFile.exists()) {
-            tvModelStatus.text = "模型已导入: ${modelFile.name} (${modelFile.length() / 1024} KB)"
+        // 检查 TFLite 模型
+        val tfliteFile = File(filesDir, "model.tflite")
+        if (tfliteFile.exists()) {
+            tvModelStatus.text = "模型已导入: TFLite (${tfliteFile.length() / 1024} KB)"
             btnStart.isEnabled = true
-        } else {
-            tvModelStatus.text = "未导入模型"
-            btnStart.isEnabled = false
+            return
         }
+
+        // 检查 ncnn 模型
+        val paramFile = File(filesDir, "model.param")
+        val binFile = File(filesDir, "model.bin")
+        if (paramFile.exists() && binFile.exists()) {
+            val totalSize = (paramFile.length() + binFile.length()) / 1024
+            tvModelStatus.text = "模型已导入: ncnn (${totalSize} KB)"
+            btnStart.isEnabled = true
+            return
+        }
+
+        tvModelStatus.text = "未导入模型"
+        btnStart.isEnabled = false
     }
 
     /**
@@ -111,7 +124,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun updateFilterStatus() {
         if (enabledClasses.isEmpty()) {
-            tvFilterStatus.text = "检测类别: 全部 (${YoloDetector.LABELS.size} 类)"
+            tvFilterStatus.text = "检测类别: 全部 (${Detector.LABELS.size} 类)"
         } else {
             tvFilterStatus.text = "检测类别: ${enabledClasses.size} 类 (点击修改)"
         }
@@ -121,7 +134,7 @@ class MainActivity : AppCompatActivity() {
      * 显示类别过滤选择对话框
      */
     private fun showClassFilterDialog() {
-        val labels = YoloDetector.LABELS
+        val labels = Detector.LABELS
         val checkedItems = BooleanArray(labels.size) { index ->
             enabledClasses.isEmpty() || enabledClasses.contains(labels[index])
         }
@@ -178,11 +191,19 @@ class MainActivity : AppCompatActivity() {
         enabledClasses.addAll(saved ?: emptySet())
     }
 
+    /**
+     * 选择模型文件
+     * 支持 TFLite (.tflite) 和 ncnn (.param / .bin) 格式
+     */
     private fun pickModelFile() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/octet-stream", "application/tflite"))
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
+                "application/octet-stream",
+                "application/tflite",
+                "text/plain"  // .param 文件通常是 text/plain
+            ))
         }
         startActivityForResult(intent, REQUEST_PICK_MODEL)
     }
@@ -280,20 +301,71 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 从 URI 复制模型文件到应用目录
+     * 支持 TFLite (.tflite) 和 ncnn (.param / .bin) 格式
+     */
     private fun copyModelFromUri(uri: Uri?) {
         if (uri == null) return
+
         try {
-            contentResolver.openInputStream(uri)?.use { input ->
-                val outFile = File(filesDir, "model.tflite")
-                FileOutputStream(outFile).use { output ->
-                    input.copyTo(output)
+            // 获取文件名
+            val fileName = getFileNameFromUri(uri)
+
+            when {
+                // TFLite 模型
+                fileName.endsWith(".tflite", ignoreCase = true) -> {
+                    copyFile(uri, "model.tflite")
+                    Toast.makeText(this, "TFLite 模型导入成功", Toast.LENGTH_SHORT).show()
+                }
+                // ncnn param 文件
+                fileName.endsWith(".param", ignoreCase = true) -> {
+                    copyFile(uri, "model.param")
+                    Toast.makeText(this, "ncnn param 文件导入成功，请继续选择 .bin 文件", Toast.LENGTH_LONG).show()
+                }
+                // ncnn bin 文件
+                fileName.endsWith(".bin", ignoreCase = true) -> {
+                    copyFile(uri, "model.bin")
+                    Toast.makeText(this, "ncnn bin 文件导入成功", Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    Toast.makeText(this, "不支持的文件格式: $fileName", Toast.LENGTH_LONG).show()
+                    return
                 }
             }
-            Toast.makeText(this, "模型导入成功", Toast.LENGTH_SHORT).show()
+
             updateModelStatus()
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "导入失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /**
+     * 从 URI 获取文件名
+     */
+    private fun getFileNameFromUri(uri: Uri): String {
+        var result = ""
+        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) {
+                    result = cursor.getString(index) ?: ""
+                }
+            }
+        }
+        return result
+    }
+
+    /**
+     * 复制文件到应用目录
+     */
+    private fun copyFile(uri: Uri, destFileName: String) {
+        contentResolver.openInputStream(uri)?.use { input ->
+            val outFile = File(filesDir, destFileName)
+            FileOutputStream(outFile).use { output ->
+                input.copyTo(output)
+            }
         }
     }
 

@@ -44,7 +44,7 @@ class OverlayView(context: Context) : View(context) {
      * 使用 letterbox 方式保持宽高比，避免图像拉伸导致检测框偏移
      */
     fun setScale(screenWidth: Int, screenHeight: Int) {
-        val modelSize = YoloDetector.INPUT_SIZE.toFloat()
+        val modelSize = Detector.INPUT_SIZE.toFloat()
 
         // 计算缩放因子：以较小的比例为准，保持宽高比
         scaleFactor = minOf(screenWidth / modelSize, screenHeight / modelSize)
