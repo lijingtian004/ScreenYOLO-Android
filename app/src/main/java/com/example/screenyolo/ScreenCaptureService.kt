@@ -59,13 +59,13 @@ class ScreenCaptureService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, -1) ?: -1
+        val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
         val data = intent?.getParcelableExtra<Intent>(EXTRA_DATA)
         val engineOrdinal = intent?.getIntExtra(EXTRA_ENGINE_TYPE, 0) ?: 0
         val engineType = EngineType.fromOrdinal(engineOrdinal)
 
-        if (resultCode == -1 || data == null) {
-            logManager.logEvent("ERROR", "Invalid intent, stopping service")
+        if (data == null) {
+            logManager.logEvent("ERROR", "Missing MediaProjection data, stopping service")
             stopSelf()
             return START_NOT_STICKY
         }
