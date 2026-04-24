@@ -51,7 +51,8 @@
                 android:id="@+id/spinnerEngine"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:background="@drawable/bg_card"
+                android:background="@drawable/bg_spinner"
+                android:popupBackground="@drawable/bg_card"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp" />
         </LinearLayout>

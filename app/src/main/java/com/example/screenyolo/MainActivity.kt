@@ -73,10 +73,10 @@ class MainActivity : AppCompatActivity() {
 
         val adapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_item,
+            R.layout.spinner_item,
             EngineType.entries.map { it.displayName }
         )
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
         spinnerEngine.adapter = adapter
 
         btnPickModel.setOnClickListener { pickModelFile() }
