@@ -61,7 +61,14 @@ jobs:
 
       # 编译 Debug APK
       - name: Build Debug APK
-        run: gradle assembleDebug
+        run: |
+          gradle assembleDebug --stacktrace 2>&1 | tee build.log || true
+          if ! grep -q "BUILD SUCCESSFUL" build.log; then
+            echo "## Build Error Log" >> $GITHUB_STEP_SUMMARY
+            grep -E "error:|Error:|FAIL|FAILED|exception|Exception" build.log | head -50 >> $GITHUB_STEP_SUMMARY
+            cat build.log | tail -100
+            exit 1
+          fi
 
       # 上传 Debug APK 作为构建产物
       - name: Upload Debug APK
