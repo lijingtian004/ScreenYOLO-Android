@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.content.Context
 import android.content.SharedPreferences
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
@@ -31,9 +30,6 @@ class MainActivity : AppCompatActivity() {
         const val PREFS_NAME = "ScreenYOLO_Prefs"
         const val KEY_INPUT_SIZE = "input_size"
         val INPUT_SIZE_OPTIONS = intArrayOf(256, 320, 640)
-    }
-
-    companion object {
         const val REQUEST_MEDIA_PROJECTION = 1001
         const val REQUEST_OVERLAY = 1002
         const val REQUEST_PICK_MODEL = 1003
