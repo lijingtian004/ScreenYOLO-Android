@@ -70,8 +70,26 @@ class ScreenCaptureService : Service() {
             // 根据模型类型创建对应的检测器
             detector = when (modelInfo.type) {
                 ModelType.TFLITE -> YoloDetector(this, modelInfo.path)
-                ModelType.NCNN -> NcnnDetector(this, modelInfo.paramPath!!, modelInfo.binPath!!)
+                ModelType.NCNN -> {
+                    try {
+                        NcnnDetector(this, modelInfo.paramPath!!, modelInfo.binPath!!)
+                    } catch (e: UnsupportedOperationException) {
+                        // ncnn 未集成，发送广播提示用户
+                        android.util.Log.w("ScreenCaptureService", "ncnn not available: ${e.message}")
+                        val ncnnIntent = Intent("com.example.screenyolo.NCNN_NOT_AVAILABLE")
+                        ncnnIntent.putExtra("message", e.message)
+                        sendBroadcast(ncnnIntent)
+                        null
+                    }
+                }
             }
+
+            // 如果检测器创建失败，停止服务
+            if (detector == null) {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+
             // 应用类别过滤设置
             val enabledClasses = intent?.getStringArrayListExtra(EXTRA_ENABLED_CLASSES)
             if (enabledClasses != null && enabledClasses.isNotEmpty()) {
