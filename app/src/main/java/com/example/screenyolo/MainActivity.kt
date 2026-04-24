@@ -23,7 +23,7 @@ import java.io.FileOutputStream
 
 /**
  * 主界面 Activity
- * 负责模型导入、权限申请、类别过滤设置和检测控制
+ * 负责模型导入、权限申请、类别过滤设置、截图区域配置和检测控制
  */
 class MainActivity : AppCompatActivity() {
 
@@ -33,20 +33,26 @@ class MainActivity : AppCompatActivity() {
         const val REQUEST_PICK_MODEL = 1003
         const val PREFS_NAME = "ScreenYOLO_Prefs"
         const val PREF_ENABLED_CLASSES = "enabled_classes"
+        const val PREF_CAPTURE_REGION = "capture_region"
     }
 
     private lateinit var btnPickModel: Button
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var btnFilter: Button
+    private lateinit var btnRegion: Button
     private lateinit var tvModelStatus: TextView
     private lateinit var tvFilterStatus: TextView
+    private lateinit var tvRegionStatus: TextView
 
     private var mediaProjectionResultCode: Int = 0
     private var mediaProjectionData: Intent? = null
 
     // 当前启用的类别集合
     private var enabledClasses: MutableSet<String> = mutableSetOf()
+
+    // 当前截图区域设置
+    private var captureRegion: CaptureRegion = CaptureRegion()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -67,29 +73,49 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val ncnnNotAvailableReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val message = intent?.getStringExtra("message") ?: "ncnn 不可用"
+            runOnUiThread {
+                Toast.makeText(context, "ncnn 提示: $message", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // 初始化日志系统
+        AppLogger.init(this)
+        AppLogger.i("MainActivity 启动")
 
         btnPickModel = findViewById(R.id.btnPickModel)
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
         btnFilter = findViewById(R.id.btnFilter)
+        btnRegion = findViewById(R.id.btnRegion)
         tvModelStatus = findViewById(R.id.tvModelStatus)
         tvFilterStatus = findViewById(R.id.tvFilterStatus)
+        tvRegionStatus = findViewById(R.id.tvRegionStatus)
 
         btnPickModel.setOnClickListener { pickModelFile() }
         btnStart.setOnClickListener { startDetection() }
         btnStop.setOnClickListener { stopDetection() }
         btnFilter.setOnClickListener { showClassFilterDialog() }
+        btnRegion.setOnClickListener { showRegionDialog() }
 
         registerReceiver(modelMissingReceiver, IntentFilter("com.example.screenyolo.MODEL_MISSING"),
             Context.RECEIVER_EXPORTED)
+        registerReceiver(ncnnNotAvailableReceiver, IntentFilter("com.example.screenyolo.NCNN_NOT_AVAILABLE"),
+            Context.RECEIVER_EXPORTED)
 
-        // 加载保存的类别过滤设置
+        // 加载保存的设置
         loadEnabledClasses()
+        loadCaptureRegion()
         updateModelStatus()
         updateFilterStatus()
+        updateRegionStatus()
     }
 
     /**
@@ -131,6 +157,108 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * 更新截图区域状态显示
+     */
+    private fun updateRegionStatus() {
+        tvRegionStatus.text = if (captureRegion.enabled) {
+            "截图区域: ${captureRegion.width}x${captureRegion.height} @ (${captureRegion.x},${captureRegion.y})"
+        } else {
+            "截图区域: 全屏"
+        }
+    }
+
+    /**
+     * 显示截图区域选择对话框
+     */
+    private fun showRegionDialog() {
+        val presets = CaptureRegion.PRESETS
+        val presetNames = presets.map { it.name }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("选择截图区域")
+            .setItems(presetNames) { _, which ->
+                val preset = presets[which]
+                if (!preset.enabled) {
+                    // 全屏
+                    captureRegion = CaptureRegion()
+                    saveCaptureRegion()
+                    updateRegionStatus()
+                    Toast.makeText(this, "已设置为全屏截图", Toast.LENGTH_SHORT).show()
+                } else {
+                    // 获取屏幕尺寸计算实际像素
+                    val metrics = android.util.DisplayMetrics()
+                    @Suppress("DEPRECATION")
+                    windowManager.defaultDisplay.getRealMetrics(metrics)
+                    captureRegion = CaptureRegion.fromPreset(preset, metrics.widthPixels, metrics.heightPixels)
+                    saveCaptureRegion()
+                    updateRegionStatus()
+                    Toast.makeText(this, "已设置: ${preset.name}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .setNeutralButton("自定义") { _, _ ->
+                showCustomRegionDialog()
+            }
+            .show()
+    }
+
+    /**
+     * 显示自定义像素区域输入对话框
+     */
+    private fun showCustomRegionDialog() {
+        val editTextX = android.widget.EditText(this).apply {
+            hint = "X 坐标"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(captureRegion.x.toString())
+        }
+        val editTextY = android.widget.EditText(this).apply {
+            hint = "Y 坐标"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(captureRegion.y.toString())
+        }
+        val editTextW = android.widget.EditText(this).apply {
+            hint = "宽度"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(captureRegion.width.toString())
+        }
+        val editTextH = android.widget.EditText(this).apply {
+            hint = "高度"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(captureRegion.height.toString())
+        }
+
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(50, 20, 50, 20)
+            addView(editTextX)
+            addView(editTextY)
+            addView(editTextW)
+            addView(editTextH)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("自定义截图区域 (像素)")
+            .setView(layout)
+            .setPositiveButton("确定") { _, _ ->
+                val x = editTextX.text.toString().toIntOrNull() ?: 0
+                val y = editTextY.text.toString().toIntOrNull() ?: 0
+                val w = editTextW.text.toString().toIntOrNull() ?: 0
+                val h = editTextH.text.toString().toIntOrNull() ?: 0
+
+                if (w > 0 && h > 0) {
+                    captureRegion = CaptureRegion(x, y, w, h, true)
+                    saveCaptureRegion()
+                    updateRegionStatus()
+                    Toast.makeText(this, "自定义区域已设置", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "宽度和高度必须大于 0", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
      * 显示类别过滤选择对话框
      */
     private fun showClassFilterDialog() {
@@ -161,7 +289,6 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("取消", null)
             .setNeutralButton("全选") { dialog, _ ->
-                // 重新创建对话框并全选
                 dialog.dismiss()
                 enabledClasses.clear()
                 saveEnabledClasses()
@@ -189,6 +316,34 @@ class MainActivity : AppCompatActivity() {
             .getStringSet(PREF_ENABLED_CLASSES, emptySet())
         enabledClasses.clear()
         enabledClasses.addAll(saved ?: emptySet())
+    }
+
+    /**
+     * 保存截图区域设置
+     */
+    private fun saveCaptureRegion() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt("region_x", captureRegion.x)
+            .putInt("region_y", captureRegion.y)
+            .putInt("region_width", captureRegion.width)
+            .putInt("region_height", captureRegion.height)
+            .putBoolean("region_enabled", captureRegion.enabled)
+            .apply()
+    }
+
+    /**
+     * 加载截图区域设置
+     */
+    private fun loadCaptureRegion() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        captureRegion = CaptureRegion(
+            x = prefs.getInt("region_x", 0),
+            y = prefs.getInt("region_y", 0),
+            width = prefs.getInt("region_width", 0),
+            height = prefs.getInt("region_height", 0),
+            enabled = prefs.getBoolean("region_enabled", false)
+        )
     }
 
     /**
@@ -261,6 +416,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopDetection() {
         stopService(Intent(this, ScreenCaptureService::class.java))
         Toast.makeText(this, "检测已停止", Toast.LENGTH_SHORT).show()
+        AppLogger.i("检测已停止")
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -275,6 +431,8 @@ class MainActivity : AppCompatActivity() {
                         putExtra(ScreenCaptureService.EXTRA_DATA, data)
                         // 传递类别过滤设置
                         putExtra(ScreenCaptureService.EXTRA_ENABLED_CLASSES, ArrayList(enabledClasses))
+                        // 传递截图区域设置
+                        putExtra(ScreenCaptureService.EXTRA_CAPTURE_REGION, captureRegion)
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         startForegroundService(intent)
@@ -282,6 +440,7 @@ class MainActivity : AppCompatActivity() {
                         startService(intent)
                     }
                     Toast.makeText(this, "检测已启动", Toast.LENGTH_SHORT).show()
+                    AppLogger.i("检测已启动，区域: $captureRegion")
                 } else {
                     Toast.makeText(this, "需要录屏权限才能运行", Toast.LENGTH_SHORT).show()
                 }
@@ -317,16 +476,19 @@ class MainActivity : AppCompatActivity() {
                 fileName.endsWith(".tflite", ignoreCase = true) -> {
                     copyFile(uri, "model.tflite")
                     Toast.makeText(this, "TFLite 模型导入成功", Toast.LENGTH_SHORT).show()
+                    AppLogger.i("TFLite 模型导入成功")
                 }
                 // ncnn param 文件
                 fileName.endsWith(".param", ignoreCase = true) -> {
                     copyFile(uri, "model.param")
                     Toast.makeText(this, "ncnn param 文件导入成功，请继续选择 .bin 文件", Toast.LENGTH_LONG).show()
+                    AppLogger.i("ncnn param 文件导入成功")
                 }
                 // ncnn bin 文件
                 fileName.endsWith(".bin", ignoreCase = true) -> {
                     copyFile(uri, "model.bin")
                     Toast.makeText(this, "ncnn bin 文件导入成功", Toast.LENGTH_SHORT).show()
+                    AppLogger.i("ncnn bin 文件导入成功")
                 }
                 else -> {
                     Toast.makeText(this, "不支持的文件格式: $fileName", Toast.LENGTH_LONG).show()
@@ -337,6 +499,7 @@ class MainActivity : AppCompatActivity() {
             updateModelStatus()
         } catch (e: Exception) {
             e.printStackTrace()
+            AppLogger.e("导入模型失败", e)
             Toast.makeText(this, "导入失败: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
@@ -372,5 +535,6 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(modelMissingReceiver)
+        unregisterReceiver(ncnnNotAvailableReceiver)
     }
 }
