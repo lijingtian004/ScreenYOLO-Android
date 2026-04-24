@@ -21,7 +21,7 @@ private fun findFileRecursive(dir: File, suffix: String): File? {
     return null
 }
 
-class YoloDetector(context: Context, engineType: EngineType) {
+class YoloDetector(private val context: Context, engineType: EngineType) {
 
     private val engine: InferenceEngine
 
@@ -64,6 +64,8 @@ class YoloDetector(context: Context, engineType: EngineType) {
         android.util.Log.d("YoloDetector", "detect() input bitmap: ${bitmap.width}x${bitmap.height}, engine inputSize=$inputSize")
         val results = engine.detect(bitmap)
         android.util.Log.d("YoloDetector", "detect() result count: ${results.size}")
+        // Also write to file log for in-app viewing
+        LogManager.getInstance(context).logEvent("DETECT", "input=${bitmap.width}x${bitmap.height} size=$inputSize results=${results.size}")
         return results
     }
 
