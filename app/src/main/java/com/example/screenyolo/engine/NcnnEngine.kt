@@ -65,11 +65,6 @@ class NcnnEngine(paramPath: String, binPath: String, userInputSize: Int = -1) : 
         val results = nativeDetect(bitmap, inputSize)
         val cost = SystemClock.elapsedRealtime() - start
         android.util.Log.d("NcnnEngine", "[$name] Inference cost: ${cost}ms, inputSize=$inputSize")
-        
-        // Also write to file log so user can see in-app
-        val logManager = LogManager.getInstance(/* context needed */)
-        logManager.logEvent("NCNN", "input=${bitmap.width}x${bitmap.height} size=$inputSize time=${cost}ms results=${results.size}")
-        
         return results.toList()
     }
 
