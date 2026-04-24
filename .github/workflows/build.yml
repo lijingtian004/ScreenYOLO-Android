@@ -2,56 +2,110 @@ name: Build ScreenYOLO APK
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
   workflow_dispatch:
+    inputs:
+      build_release:
+        description: 'Build release APK'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # 检出代码
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 设置 JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
+      # 设置 Android SDK
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      # 接受 Android SDK 许可协议
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses || true
 
+      # 安装必要的 SDK 组件
       - name: Install required SDK components
         run: |
           sdkmanager "platforms;android-34"
           sdkmanager "build-tools;34.0.0"
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      # 缓存 Gradle 依赖，加速后续构建
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
         with:
-          python-version: '3.11'
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
-      - name: Export YOLOv8 TFLite model
-        run: |
-          pip install ultralytics
-          python -c "from ultralytics import YOLO; YOLO('yolov8n.pt').export(format='tflite')"
-          mkdir -p app/src/main/assets
-          cp yolov8n_float32.tflite app/src/main/assets/
-
+      # 设置 Gradle
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.4'
 
-      - name: Build APK
+      # 编译 Debug APK
+      - name: Build Debug APK
         run: gradle assembleDebug
 
-      - name: Upload APK
+      # 上传 Debug APK 作为构建产物
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: ScreenYOLO-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      # 如果手动触发且选择构建 Release，则编译 Release APK
+      - name: Build Release APK
+        if: github.event.inputs.build_release == 'true'
+        run: gradle assembleRelease
+
+      # 上传 Release APK
+      - name: Upload Release APK
+        if: github.event.inputs.build_release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScreenYOLO-release
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: warn
+
+  # 自动创建 Release（仅在推送到 master 分支且带有版本标签时）
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 下载构建产物
+      - name: Download Debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ScreenYOLO-debug
+          path: ./apk
+
+      # 创建 GitHub Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./apk/*.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
